@@ -1,6 +1,15 @@
 # 希沃管家密码破解工具
 
-希沃管家密码破解工具是一个用Kotlin和Jetpack Compose编写的软件，旨在帮助用户恢复希沃管家的密码。该项目的灵感和部分代码来自于[Seewo Assistant Password Recovery Tool V2](https://github.com/zhy8388608/Seewo_Assistant_Password_Recovery_Tool_V2)
+希沃管家密码破解工具是一个用Kotlin和Jetpack Compose编写的软件，旨在帮助破解希沃管家的密码。该项目的灵感和部分代码来自于[Seewo Assistant Password Recovery Tool V2](https://github.com/zhy8388608/Seewo_Assistant_Password_Recovery_Tool_V2)
+
+## 使用方法
+
+1. 从你的电脑中找到`LockPasswardV2`的值。该值通常位于以下路径之一：
+   - `C:\ProgramData\Seewo\SeewoCore\SeewoCore.ini`
+   - `%APPDATA%\Seewo\SeewoAbility\SeewoLockConfig.ini`
+2. 打开对应的`.ini`文件，找到`LockPasswardV2`或`PASSWORDV2`字段，并记录其值。
+3. 将记录的`LockPasswardV2`或`PASSWORDV2`值粘贴到软件的输入框中。
+4. 点击“计算”按钮，软件将开始计算密码（该过程可能需要5分钟以内的时间）。
 
 ## 技术栈
 
