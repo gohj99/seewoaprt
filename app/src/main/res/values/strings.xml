@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">希沃管家密码破解工具</string>
+    <string name="PasswardV2">LockPasswardV2 的值</string>
+    <string name="count">计算</string>
+    <string name="loading">计算中...</string>
+    <string name="failed">计算失败</string>
+    <string name="result">结果为：</string>
+</resources>
