@@ -83,24 +83,37 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun seewoAssistantPasswordRecovery(lockPasswordV2: String): String? = withContext(Dispatchers.Default) {
-        if (lockPasswordV2 == "") {
+        if (lockPasswordV2 == "" || lockPasswordV2.length != 16) {
+            //println("Invalid lockPasswordV2: $lockPasswordV2")
             return@withContext null
         }
         val hugo = toMD5("hugo")
-        val totalParts = 3000
-        val rangeSize = 1000000 / totalParts
+        //println("MD5 of 'hugo': $hugo")
+
+        val totalParts = 2000
+        val rangeSize = (1000000 + totalParts - 1) / totalParts  // 向上取整
         val found = AtomicBoolean(false)
         val deferredResults = (0 until totalParts).map { part ->
             async {
                 val start = part * rangeSize
-                val end = start + rangeSize
+                val end = minOf(start + rangeSize, 1000000)  // 确保 end 不超过 1000000
                 for (i in start until end) {
                     if (found.get()) {
                         return@async null
                     }
                     val pwd = "%06d".format(i)
-                    val enc = toMD5(toMD5(pwd) + hugo).substring(8, 24)
+                    val pwdHash = toMD5(pwd)
+                    val combinedHash = toMD5(pwdHash + hugo)
+                    val enc = combinedHash.substring(8, 24)
+
+                    /* 调试
+                    if (i > 999988) { // 每隔100000次迭代打印一次调试信息
+                        println("Trying password: $pwd -> pwdHash: $pwdHash -> combinedHash: $combinedHash -> enc: $enc")
+                    }
+                    */
+
                     if (enc == lockPasswordV2) {
+                        //println("Found matching password: $pwd")
                         found.set(true)
                         return@async pwd
                     }
@@ -112,7 +125,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun toMD5(input: String): String {
-        val digest = md5Digest.clone() as MessageDigest
+        val digest = MessageDigest.getInstance("MD5")
         val bytes = digest.digest(input.toByteArray())
         val hexString = StringBuilder(bytes.size * 2)
         for (byte in bytes) {
