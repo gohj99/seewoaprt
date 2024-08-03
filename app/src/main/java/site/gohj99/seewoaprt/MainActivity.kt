@@ -47,9 +47,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import site.gohj99.seewoaprt.ui.theme.seewoaprtTheme
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity() {
     private var doneStr = mutableStateOf("")
+    private val md5Digest: MessageDigest = MessageDigest.getInstance("MD5")
+    private var isComputing = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,37 +61,68 @@ class MainActivity : ComponentActivity() {
                 SplashMainScreen(
                     onDoneClick = { text ->
                         lifecycleScope.launch {
+                            isComputing.value = true
                             doneStr.value = getString(R.string.loading)
-                            val recoveredPassword = seewoAssistantPasswordRecovery(text)
+                            val recoveredPassword = seewoAssistantPasswordRecovery(
+                                lockPasswordV2 = text
+                            )
                             if (recoveredPassword != null) {
-                                doneStr.value = recoveredPassword
+                                doneStr.value = getString(R.string.result) + recoveredPassword
                             } else {
                                 doneStr.value = getString(R.string.failed)
                             }
+                            isComputing.value = false
                         }
                     },
-                    doneStr = doneStr
+                    doneStr = doneStr,
+                    isComputing = isComputing
                 )
             }
         }
         doneStr.value = getString(R.string.count)
     }
 
-    private suspend fun seewoAssistantPasswordRecovery(LockPasswordV2: String): String? = withContext(Dispatchers.Default) {
+    private suspend fun seewoAssistantPasswordRecovery(lockPasswordV2: String): String? = withContext(Dispatchers.Default) {
+        if (lockPasswordV2 == "") {
+            return@withContext null
+        }
         val hugo = toMD5("hugo")
-        for (i in 0 until 1000000) {
-            val pwd = "%06d".format(i)
-            val enc = toMD5(toMD5(pwd) + hugo).substring(8, 24)
-            if (enc == LockPasswordV2) {
-                return@withContext pwd
+        val totalParts = 3000
+        val rangeSize = 1000000 / totalParts
+        val found = AtomicBoolean(false)
+        val deferredResults = (0 until totalParts).map { part ->
+            async {
+                val start = part * rangeSize
+                val end = start + rangeSize
+                for (i in start until end) {
+                    if (found.get()) {
+                        return@async null
+                    }
+                    val pwd = "%06d".format(i)
+                    val enc = toMD5(toMD5(pwd) + hugo).substring(8, 24)
+                    if (enc == lockPasswordV2) {
+                        found.set(true)
+                        return@async pwd
+                    }
+                }
+                return@async null
             }
         }
-        return@withContext null
+        deferredResults.awaitAll().firstOrNull { it != null }
     }
 
     private fun toMD5(input: String): String {
-        val bytes = MessageDigest.getInstance("MD5").digest(input.toByteArray())
-        return bytes.joinToString("") { "%02x".format(it) }
+        val digest = md5Digest.clone() as MessageDigest
+        val bytes = digest.digest(input.toByteArray())
+        val hexString = StringBuilder(bytes.size * 2)
+        for (byte in bytes) {
+            val hex = (byte.toInt() and 0xFF).toString(16)
+            if (hex.length == 1) {
+                hexString.append('0')
+            }
+            hexString.append(hex)
+        }
+        return hexString.toString()
     }
 }
 
@@ -97,31 +131,34 @@ fun CustomButton(
     onClick: () -> Unit,
     text: String,
     modifier: Modifier = Modifier,
-    shape: androidx.compose.foundation.shape.RoundedCornerShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+    shape: RoundedCornerShape = RoundedCornerShape(10.dp),
+    enabled: Boolean = true
 ) {
     var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (isPressed) 0.9f else 1f)
+    val scale by animateFloatAsState(if (isPressed && enabled) 0.9f else 1f, label = "")
 
     Box(
         modifier = modifier
             .scale(scale)
             .size(width = 148.dp, height = 33.dp)
             .clip(shape)
-            .background(Color(0xFF2397D3))
+            .background(if (enabled) Color(0xFF2397D3) else Color.Gray)
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        try {
-                            awaitRelease()
-                        } finally {
-                            isPressed = false
+                if (enabled) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed = true
+                            try {
+                                awaitRelease()
+                            } finally {
+                                isPressed = false
+                            }
+                        },
+                        onTap = {
+                            onClick()
                         }
-                    },
-                    onTap = {
-                        onClick()
-                    }
-                )
+                    )
+                }
             },
         contentAlignment = Alignment.Center
     ) {
@@ -135,7 +172,8 @@ fun CustomButton(
 @Composable
 fun SplashMainScreen(
     onDoneClick: (String) -> Unit,
-    doneStr: MutableState<String>
+    doneStr: MutableState<String>,
+    isComputing: MutableState<Boolean>
 ) {
     val passwordHint: String = stringResource(id = R.string.PasswardV2)
     var text by remember { mutableStateOf("") }
@@ -163,9 +201,9 @@ fun SplashMainScreen(
                 .padding(start = 30.dp, end = 30.dp)
                 .background(
                     color = Color.Gray,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                    shape = RoundedCornerShape(4.dp)
                 )
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp))
         ) {
             BasicTextField(
                 value = text,
@@ -205,7 +243,8 @@ fun SplashMainScreen(
             onClick = {
                 onDoneClick(text)
             },
-            text = doneStr.value
+            text = doneStr.value,
+            enabled = !isComputing.value
         )
     }
 }
@@ -216,7 +255,8 @@ fun GreetingPreview() {
     seewoaprtTheme {
         SplashMainScreen(
             onDoneClick = { /*TODO*/ },
-            doneStr = mutableStateOf("")
+            doneStr = mutableStateOf(""),
+            isComputing = mutableStateOf(false)
         )
     }
 }
